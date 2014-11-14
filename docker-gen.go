@@ -20,7 +20,7 @@ var (
 	watch                   bool
 	notifyCmd               string
 	notifySigHUPContainerID string
-	restartContainerID      string
+	dockerCommand           string
 	onlyExposed             bool
 	onlyPublished           bool
 	configFile              string
@@ -75,7 +75,8 @@ type Config struct {
 	Watch            bool
 	NotifyCmd        string
 	NotifyContainers map[string]docker.Signal
-	RestartContainer string
+	DockerCommand    string
+	StopContainer    string
 	OnlyExposed      bool
 	OnlyPublished    bool
 	Interval         int
@@ -126,7 +127,7 @@ func (r *RuntimeContainer) PublishedAddresses() []Address {
 }
 
 func usage() {
-	println("Usage: docker-gen [-config file] [-watch=false] [-notify=\"restart xyz\"] [-notify-sighup=\"container-ID\"] [-restart=\"contaier-ID\"] [-interval=0] [-endpoint tcp|unix://..] <template> [<dest>]")
+	println("Usage: docker-gen [-config file] [-watch=false] [-notify=\"restart xyz\"] [-notify-sighup=\"container-ID\"] [-docker-cmd=\"[start|stop|restart]:contaier-ID\"] [-interval=0] [-endpoint tcp|unix://..] <template> [<dest>]")
 }
 
 func generateFromContainers(client *docker.Client) {
@@ -143,7 +144,7 @@ func generateFromContainers(client *docker.Client) {
 		}
 		runNotifyCmd(config)
 		sendSignalToContainer(client, config)
-		restartContainer(client, config)
+		runDockerCommand(client, config)
 	}
 }
 
@@ -178,15 +179,49 @@ func sendSignalToContainer(client *docker.Client, config Config) {
 	}
 }
 
-func restartContainer(client *docker.Client, config Config) {
-	if config.RestartContainer == "" {
-		return
+func startContainer(client *docker.Client, container string) {
+	log.Printf("Starting container '%s'", container)
+	if err := client.StartContainer(container, nil); err != nil {
+		log.Printf("Error starting container: %s", err)
 	}
+}
 
-	container := config.RestartContainer
+func stopContainer(client *docker.Client, container string) {
+	log.Printf("Stopping container '%s'", container)
+	if err := client.StopContainer(container, 10); err != nil {
+		log.Printf("Error stopping container: %s", err)
+	}
+}
+
+func restartContainer(client *docker.Client, container string) {
 	log.Printf("Restarting container '%s'", container)
 	if err := client.RestartContainer(container, 10); err != nil {
 		log.Printf("Error restarting container: %s", err)
+	}
+}
+
+func runDockerCommand(client *docker.Client, config Config) {
+	if config.DockerCommand == "" {
+		return
+	}
+	
+	parts := strings.Split(config.DockerCommand, ":")
+	if len(parts) != 2 {
+		log.Printf("Bad docker command format")
+		return
+	}
+	command := parts[0]
+	container := parts[1]
+
+	switch command {
+	case "start":
+		startContainer(client, container)
+	case "stop":
+		stopContainer(client, container)
+	case "restart":
+		restartContainer(client, container)
+	default:
+		log.Printf("Unsupported docker command: %s", command)
 	}
 }
 
@@ -224,7 +259,7 @@ func generateAtInterval(client *docker.Client, configs ConfigFile) {
 					generateFile(configCopy, containers)
 					runNotifyCmd(configCopy)
 					sendSignalToContainer(client, configCopy)
-					restartContainer(client, configCopy)
+					runDockerCommand(client, configCopy)
 				case <-quit:
 					ticker.Stop()
 					return
@@ -265,7 +300,7 @@ func initFlags() {
 	flag.BoolVar(&onlyPublished, "only-published", false, "only include containers with published ports (implies -only-exposed)")
 	flag.StringVar(&notifyCmd, "notify", "", "run command after template is regenerated")
 	flag.StringVar(&notifySigHUPContainerID, "notify-sighup", "", "send HUP signal to container.  Equivalent to `docker kill -s HUP container-ID`")
-	flag.StringVar(&restartContainerID, "restart", "", "restart a container.  Equivalent to `docker restart container-ID`")
+	flag.StringVar(&dockerCommand, "docker-cmd", "", "run Docker command.  Supports `start|stop|restart:container-ID`")
 	flag.StringVar(&configFile, "config", "", "config file with template directives")
 	flag.IntVar(&interval, "interval", 0, "notify command interval (s)")
 	flag.StringVar(&endpoint, "endpoint", "", "docker api endpoint")
@@ -298,7 +333,7 @@ func main() {
 			Watch:            watch,
 			NotifyCmd:        notifyCmd,
 			NotifyContainers: make(map[string]docker.Signal),
-			RestartContainer: restartContainerID,
+			DockerCommand:    dockerCommand,
 			OnlyExposed:      onlyExposed,
 			OnlyPublished:    onlyPublished,
 			Interval:         interval,
