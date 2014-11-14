@@ -71,7 +71,7 @@ $ docker run --volumes-from nginx \
 ### Usage
 ```
 $ docker-gen
-Usage: docker-gen [-config file] [-watch=false] [-notify="restart xyz"] [-notify-sighup="nginx-proxy"] [-interval=0] [-endpoint tcp|unix://..] <template> [<dest>]
+Usage: docker-gen [-config file] [-watch=false] [-notify="restart xyz"] [-notify-sighup="nginx-proxy"] [-restart="logstash-forwarder"] [-interval=0] [-endpoint tcp|unix://..] <template> [<dest>]
 ```
 
 *Options:*
@@ -84,6 +84,7 @@ Usage: docker-gen [-config file] [-watch=false] [-notify="restart xyz"] [-notify
   -notify="": run command after template is regenerated ["restart xyz"]. Useful for restarting nginx,
               reloading haproxy, etc..
   -notify-sighup="": send HUP signal to container.  Equivalent to `docker kill -s HUP container-ID`
+  -restart="": restart a container.  Equivalent to `docker restart container-ID`
   -only-exposed=false: only include containers with exposed ports
   -only-published=false: only include containers with published ports (implies -only-exposed)
   -version=false: show version
