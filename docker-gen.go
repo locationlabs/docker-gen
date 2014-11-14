@@ -76,7 +76,6 @@ type Config struct {
 	NotifyCmd        string
 	NotifyContainers map[string]docker.Signal
 	DockerCommand    string
-	StopContainer    string
 	OnlyExposed      bool
 	OnlyPublished    bool
 	Interval         int
