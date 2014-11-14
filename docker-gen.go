@@ -143,6 +143,7 @@ func generateFromContainers(client *docker.Client) {
 		}
 		runNotifyCmd(config)
 		sendSignalToContainer(client, config)
+		restartContainer(client, config)
 	}
 }
 
